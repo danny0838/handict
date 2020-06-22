@@ -25,6 +25,16 @@ table td img {
   width: 40px;
   height: 40px;
 }
+#result table th[data-column] a:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+#result table th[data-order="1"] a::after {
+  content: "↓";
+}
+#result table th[data-order="-1"] a::after {
+  content: "↑";
+}
 </style>
 </head>
 <body>
@@ -45,7 +55,7 @@ table td img {
 <div id="result" hidden>
 <table>
 <thead>
-<tr><th>字形</th><th>字元</th><th>Unicode</th><th>六代蒼頡內碼</th><th>五代倉頡內碼</th><th>五代倉頡輸入碼</th><th>關聯字</th></tr>
+<tr><th data-column="0" data-type="int"><a>字形</a></th><th data-column="1" data-type="str"><a>字元</a></th><th data-column="2" data-type="hex"><a>Unicode</a></th><th data-column="3" data-type="str"><a>六代蒼頡內碼</a></th><th data-column="4" data-type="str"><a>五代倉頡內碼</a></th><th data-column="5" data-type="str"><a>五代倉頡輸入碼</a></th><th>關聯字</th></tr>
 </thead>
 <tbody></tbody>
 </table>
@@ -139,7 +149,9 @@ async function search(filter) {
 
     var tr = tbody.appendChild(document.createElement('tr'));
     var td = tr.appendChild(document.createElement('td'));
-    var a = td.appendChild(document.createElement('a'));
+    var d = td.appendChild(document.createElement('data'));
+    d.setAttribute('value', id);
+    var a = d.appendChild(document.createElement('a'));
     a.href = `http://chidic.eduhk.hk/v.php?id=${id}`;
     a.target = `_blank`;
     a.title = '查閱漢文庫典';
@@ -190,6 +202,54 @@ async function searchByUrlParams() {
   search(filter);
 }
 
+function sortTable(dataTable, column, type, order) {
+  const getCellRawValue = (cell) => {
+    const dataElem = cell.querySelector('data');
+    if (dataElem && dataElem.hasAttribute('value')) {
+      return dataElem.getAttribute('value');
+    }
+    return cell.textContent;
+  };
+
+  const getCellKey = (cell, type) => {
+    const value = getCellRawValue(cell);
+    switch (type) {
+      case 'int':
+        return parseInt(value, 10) || 0;
+      case 'hex':
+        return parseInt(value, 16) || 0;
+      default: // str
+        return value;
+    }
+  };
+
+  var thead = dataTable.tHead;
+  Array.prototype.forEach.call(thead.rows[0].cells, (cell) => {
+    cell.removeAttribute('data-order');
+  });
+  thead.rows[0].cells[column].setAttribute('data-order', order);
+
+  var tbody = dataTable.tBodies[0];
+  var rows = Array.prototype.slice.call(tbody.rows);
+
+  rows.sort((a, b) => {
+    var ka = getCellKey(a.cells[column], type);
+    var kb = getCellKey(b.cells[column], type);
+
+    if (ka < kb) {
+      return -order;
+    }
+    if (ka > kb) {
+      return order;
+    }
+    return 0;
+  });
+
+  for (var i = 0, I = rows.length; i < I; i++) {
+    tbody.appendChild(rows[i]);
+  }
+}
+
 document.getElementById('search').addEventListener('submit', (event) => {
   event.preventDefault();
   event.stopPropagation();
@@ -199,6 +259,23 @@ document.getElementById('search').addEventListener('submit', (event) => {
   const filter = {[field]: key};
   history.pushState({}, '', '?' + new URLSearchParams(filter).toString());
   search(filter);
+});
+
+Array.prototype.forEach.call(document.querySelectorAll('#result table th[data-column] a'), (elem) => {
+  elem.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const elem = event.currentTarget;
+    const table = elem.closest('table');
+    const th = elem.closest('th');
+    sortTable(
+      table,
+      th.getAttribute('data-column'),
+      th.getAttribute('data-type'),
+      th.getAttribute("data-order") == 1 ? -1 : 1
+    );
+  });
 });
 
 document.addEventListener('DOMContentLoaded', (event) => {
